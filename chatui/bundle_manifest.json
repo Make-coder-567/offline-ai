@@ -1,0 +1,56 @@
+[
+  {
+    "model": "qwen3:0.6b",
+    "safe": "qwen3-0.6b",
+    "gguf_name": "Qwen3-0.6B-Q8_0.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\Qwen3-0.6B-Q8_0.gguf"
+  },
+  {
+    "model": "gemma3:1b",
+    "safe": "gemma3-1b",
+    "gguf_name": "gemma-3-1b-it-Q4_K_M.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\gemma-3-1b-it-Q4_K_M.gguf"
+  },
+  {
+    "model": "llama3.2:1b",
+    "safe": "llama3.2-1b",
+    "gguf_name": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+  },
+  {
+    "model": "deepseek-r1:1.5b",
+    "safe": "deepseek-r1-1.5b",
+    "gguf_name": "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf"
+  },
+  {
+    "model": "qwen3:1.7b",
+    "safe": "qwen3-1.7b",
+    "gguf_name": "Qwen3-1.7B-Q8_0.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\Qwen3-1.7B-Q8_0.gguf"
+  },
+  {
+    "model": "llama3.2:3b",
+    "safe": "llama3.2-3b",
+    "gguf_name": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+  },
+  {
+    "model": "qwen2.5-coder:3b",
+    "safe": "qwen2.5-coder-3b",
+    "gguf_name": "qwen2.5-coder-3b-instruct-q4_k_m.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+  },
+  {
+    "model": "qwen3:4b",
+    "safe": "qwen3-4b",
+    "gguf_name": "Qwen3-4B-Q4_K_M.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\Qwen3-4B-Q4_K_M.gguf"
+  },
+  {
+    "model": "gemma3:4b",
+    "safe": "gemma3-4b",
+    "gguf_name": "gemma-3-4b-it-Q4_K_M.gguf",
+    "gguf_abs": "E:\\Workbuddy\\2026-10-11-17-27-15\\offline-ai\\chatui\\gguf_models\\gemma-3-4b-it-Q4_K_M.gguf"
+  }
+]

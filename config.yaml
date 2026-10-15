@@ -1,0 +1,14 @@
+# 离线AI智能体配置
+# 修改 model 以适配你的显存：7b(~4GB) / 14b(~9GB) / deepseek-r1:7b
+model: "qwen2.5:7b"
+ollama_base: "http://localhost:11434"
+workspace_root: "E:/Workbuddy/2026-10-11-17-27-15"
+bridge_dir: ".offline-bridge"        # 相对 workspace_root
+poll_interval: 3                      # agent 轮询 inbox 的间隔(秒)
+allow_shell: false                    # 离线AI是否可调用 shell（默认关，谨慎开启）
+shell_allowlist:                      # 仅当 allow_shell=true 时生效
+  - "dir"
+  - "ls"
+  - "cat"
+  - "python"
+  - "python3"

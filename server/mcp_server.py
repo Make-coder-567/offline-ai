@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SERVER = ROOT / "server"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(SERVER))
+from paths import resolve_workspace  # noqa: E402
 
 import yaml
 try:
@@ -131,7 +132,7 @@ _MAX_DOC_BYTES = 50 * 1024 * 1024
 
 def _in_workspace(path: str) -> Path:
     """把路径限制在 workspace 内，防越权读取任意文件。"""
-    ws = Path(str(cfg.get("workspace_root") or ".")).resolve()
+    ws = Path(resolve_workspace(cfg))
     p = Path(path)
     p = (ws / p).resolve() if not p.is_absolute() else p.resolve()
     if not p.is_relative_to(ws):
@@ -283,7 +284,7 @@ def local_run_python(code: str, timeout: int = 10) -> str:
         from server.audit import Audit
     except Exception as e:
         return f"[error] {e}"
-    ws = cfg.get("workspace_root") or "."
+    ws = resolve_workspace(cfg)
     allow = bool((cfg.get("agent") or {}).get("allow_python", False))
     return Tools(ws, allow_python=allow, audit=Audit(ws)).run_python(code, timeout=timeout)
 
@@ -295,7 +296,7 @@ def local_audit(n: int = 20) -> str:
         from server.audit import Audit
     except Exception as e:
         return f"[error] {e}"
-    rows = Audit(cfg.get("workspace_root") or ".").tail(n)
+    rows = Audit(resolve_workspace(cfg)).tail(n)
     if not rows:
         return "（暂无审计记录）"
     return "\n".join(
@@ -312,7 +313,7 @@ def local_undo() -> str:
         from server.audit import Audit
     except Exception as e:
         return f"[error] {e}"
-    return Audit(cfg.get("workspace_root") or ".").rollback()
+    return Audit(resolve_workspace(cfg)).rollback()
 
 
 @mcp.tool()
@@ -345,7 +346,7 @@ def _rag():
     global _RAG
     if _RAG is None:
         from rag import RagIndex
-        _RAG = RagIndex(cfg.get("workspace_root") or ".")
+        _RAG = RagIndex(resolve_workspace(cfg))
     return _RAG
 
 

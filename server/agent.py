@@ -379,7 +379,7 @@ def main() -> None:
     # 写操作默认允许（带快照 + 审计可回滚）；代码执行默认关闭，需显式开启
     agent_cfg = cfg.get("agent") or {}
     audit = Audit(cfg["workspace_root"])
-    tools = Tools(cfg["workspace_root"],
+    tools = Tools(ws,
                   allow_python=bool(agent_cfg.get("allow_python", False)),
                   audit=audit)
     # 定时任务：与 agent 同进程后台跑，结果写 <data>/schedule.log

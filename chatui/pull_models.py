@@ -4,6 +4,7 @@
 导致 ollama create 报 "unexpected EOF"。这里全部用 Python 写文件。
 """
 import os
+import shutil
 import sys
 import json
 import time

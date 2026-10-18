@@ -21,7 +21,7 @@ agent:
                                        # 需要跑计算/数据处理时再打开，用完建议关回去。
   write_enabled: true                  # 写文件能力（写前快照 + 审计 + 可一键回滚）
 ollama_base: "http://127.0.0.1:11434"   # 一律用 127.0.0.1：localhost 会走 IPv6(::1) 回退, 每次请求多花 ~2s
-workspace_root: "E:/Workbuddy/离线AI"
+workspace_root: "."                    # 相对路径按项目根解析，换目录/换机器都不用改
 bridge_dir: ".offline-bridge"        # 相对 workspace_root
 poll_interval: 3                      # agent 轮询 inbox 的间隔(秒)
 # 注意: shell 执行能力已移除(2026-10-17 安全修复) —— 原白名单只校验命令首个词,

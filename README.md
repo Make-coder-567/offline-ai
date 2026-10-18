@@ -26,12 +26,34 @@
 
 ## 快速开始
 
+### 0. 环境准备
+
+| 依赖 | 要求 | 说明 |
+|---|---|---|
+| Python | **3.10+** | 仅开发态需要；打包版自带运行时 |
+| Ollama | 任意近期版本，服务在 `http://127.0.0.1:11434` | 先启动 `ollama serve`（桌面版会自动常驻） |
+| 模型 | 至少一个，建议 `gemma3:4b` | 见下方「准备模型」 |
+
+```bash
+git clone https://github.com/Make-coder-567/offline-ai.git
+cd offline-ai
+python -m venv .venv && .venv\Scripts\activate   # Windows；macOS/Linux 用 source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ### 1. 桌面聊天（GUI）
 
 ```bash
-# 开发态（需 Ollama 在跑；本机通常已由桌面版常驻）
-"C:/Users/mrhua/.workbuddy/binaries/python/envs/default/Scripts/python.exe" chatui/chat_app.py
-# 打包态：双击 offline_chat.exe
+# 开发态（需 Ollama 在跑）
+python chatui/chat_app.py
+# 打包态：双击 offline_chat.exe（无需 Python）
+```
+
+**准备模型**（二选一）：
+
+```bash
+ollama pull gemma3:4b          # 最简单；联网一次即可
+python chatui/pull_models.py    # 从 ModelScope 批量拉取并导入（含视觉/mmproj，国内更快）
 ```
 
 - 界面：左侧会话栏（新建 / 搜索 / 会话列表 / 记忆 / 设置 / 服务状态）+ 中间阅读列 + 底部输入卡

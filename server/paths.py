@@ -28,3 +28,20 @@ def data_dir() -> Path:
 
 def sessions_dir() -> Path:
     return data_dir() / "sessions"
+
+
+def project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def resolve_workspace(cfg: dict) -> str:
+    """把 workspace_root 归一化成绝对路径。
+
+    config.yaml 里写相对路径（默认 "."）时，按**项目根**解析，
+    这样别人 clone 到任何目录都能直接用，不会落到进程 CWD。
+    """
+    raw = str((cfg or {}).get("workspace_root") or ".")
+    p = Path(raw).expanduser()
+    if not p.is_absolute():
+        p = project_root() / p
+    return str(p.resolve())

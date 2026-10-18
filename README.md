@@ -244,4 +244,8 @@ python tests/real_chain_test.py --quick   # 跳过深度思考
 
 ## 许可证
 
-本项目以 MIT 许可证开源（详见 `LICENSE`）。模型权重遵循各自上游许可证。
+本项目以 **MIT** 许可证开源（详见 `LICENSE`）。
+
+模型权重（Qwen / Gemma / Llama / DeepSeek 等）遵循各自上游许可证，本仓库不重新分发任何权重文件（`chatui/gguf_models`、`model_assets` 均已加入 `.gitignore`）。
+
+> 二次分发请注意：MIT 只覆盖本仓库代码，打包进安装包的模型仍有各自的商用条款。

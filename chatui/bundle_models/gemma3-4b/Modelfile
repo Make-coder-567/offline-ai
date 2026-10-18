@@ -3,7 +3,7 @@ TEMPLATE "<bos><start_of_turn>user
 {{ .Prompt }}<end_of_turn>
 <start_of_turn>model
 {{ .Response }}<end_of_turn>"
+PARAMETER temperature 1
 PARAMETER top_k 64
 PARAMETER stop <end_of_turn>
 PARAMETER stop <eos>
-PARAMETER temperature 1

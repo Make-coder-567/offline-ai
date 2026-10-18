@@ -1,14 +1,29 @@
 # 离线AI智能体配置
-# 修改 model 以适配你的显存：7b(~4GB) / 14b(~9GB) / deepseek-r1:7b
-model: "qwen2.5:7b"
-ollama_base: "http://localhost:11434"
-workspace_root: "E:/Workbuddy/2026-10-11-17-27-15"
+# 修改 model 以适配你的硬件：本机(16GB/纯CPU, 空闲~5GB)推荐 ≤4B；有独显的机器可用 7b/8b
+model: "gemma3:4b"                    # 默认: 无 thinking 模式、直出 content、中文质量稳定
+num_ctx: 6144                         # 关键: qwen3:4b 在 Ollama 上 num_ctx=4096 会输出乱码(实测),
+                                      # 3072/6144/8192 均正常; gemma3:4b 在 6144 下亦实测正常
+keep_alive: "10m"                      # 模型闲置 10 分钟后卸载, 平衡 首token延迟 vs 内存占用
+# 任务类型 → 模型路由（agent 任务可带 task_type 字段；MCP 的代码/视觉工具也走这里）
+routes:
+  code: "qwen2.5-coder:3b"
+  fast: "qwen3:1.7b"
+  reason: "deepseek-r1:1.5b"
+  vision: "gemma3:4b-vision"           # 由 gemma3:4b + mmproj-F16 投影构建（本机已导入）
+embed_model: "gemma3:4b"               # 向量化模型；注意: 本机 Ollama 0.40.5 构建未开放 embeddings 接口,
+                                      # 该工具会返回可操作提示; 换支持 embeddings 的发行版后即可用于 RAG
+agent_max_steps: 5                     # ReAct 工具调用循环最大步数（重复失败会提前终止）
+agent:
+  allow_python: false                  # 是否允许智能体执行 Python（默认关闭）。
+                                       # 开启后仍受三重限制：① AST 检查禁危险 import
+                                       # (os/sys/subprocess/socket/open/eval/…)；
+                                       # ② 子进程 -I 隔离 + 超时强杀；③ 全程写审计日志。
+                                       # 需要跑计算/数据处理时再打开，用完建议关回去。
+  write_enabled: true                  # 写文件能力（写前快照 + 审计 + 可一键回滚）
+ollama_base: "http://127.0.0.1:11434"   # 一律用 127.0.0.1：localhost 会走 IPv6(::1) 回退, 每次请求多花 ~2s
+workspace_root: "E:/Workbuddy/离线AI"
 bridge_dir: ".offline-bridge"        # 相对 workspace_root
 poll_interval: 3                      # agent 轮询 inbox 的间隔(秒)
-allow_shell: false                    # 离线AI是否可调用 shell（默认关，谨慎开启）
-shell_allowlist:                      # 仅当 allow_shell=true 时生效
-  - "dir"
-  - "ls"
-  - "cat"
-  - "python"
-  - "python3"
+# 注意: shell 执行能力已移除(2026-10-17 安全修复) —— 原白名单只校验命令首个词,
+# `cat x && python evil.py` 可绕过且 python 本身就在白名单中, 等价于 RCE。
+# 模型对系统的操作由 Tools 的 read_file/write_file/list_dir 覆盖, 详见 docs/代码审查报告_2026-10-17.md SEC-1。

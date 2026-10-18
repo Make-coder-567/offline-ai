@@ -13,7 +13,8 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DIST = os.path.join(HERE, "dist", "offline_chat")
+DIST = (os.path.abspath(sys.argv[1]) if len(sys.argv) > 1
+        else os.path.join(HERE, "dist", "offline_chat"))
 INT = os.path.join(DIST, "_internal")
 
 fails = []
@@ -30,10 +31,10 @@ need(os.path.isfile(os.path.join(DIST, "offline_chat.exe")), "offline_chat.exe")
 need(os.path.isfile(os.path.join(INT, "ollama", "ollama.exe")), "_internal/ollama/ollama.exe")
 need(os.path.isfile(os.path.join(INT, "bundle_manifest.json")), "bundle_manifest.json")
 
-print("== 2. 9 个模型: Modelfile + GGUF ==")
+print("== 2. 模型: Modelfile + GGUF (+mmproj) ==")
 with open(os.path.join(INT, "bundle_manifest.json"), encoding="utf-8") as f:
     manifest = json.load(f)
-need(len(manifest) == 9, "manifest 共 9 个模型 (实际 %d)" % len(manifest))
+need(len(manifest) >= 9, "manifest 至少 9 个模型 (实际 %d)" % len(manifest))
 for m in manifest:
     d = os.path.join(INT, "bundle_models", m["safe"])
     mf = os.path.join(d, "Modelfile")
@@ -41,6 +42,10 @@ for m in manifest:
     need(os.path.isfile(mf), "%s/Modelfile" % m["safe"])
     ok_gg = os.path.isfile(gg) and os.path.getsize(gg) > 1024 * 1024
     need(ok_gg, "%s/%s (>1MB)" % (m["safe"], m["gguf_name"]))
+    if m.get("mmproj_name"):
+        mp = os.path.join(d, m["mmproj_name"])
+        ok_mp = os.path.isfile(mp) and os.path.getsize(mp) > 1024 * 1024
+        need(ok_mp, "%s/%s (>1MB)" % (m["safe"], m["mmproj_name"]))
 
 print("== 3. _internal 根目录 Ollama 污染 DLL ==")
 POLLUTION = ["ggml-base.dll", "ggml.dll", "libllama.dll", "libllama-common.dll",

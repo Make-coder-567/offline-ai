@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>离线 AI · 界面方案 v3（墨绿纸感）</title>
+<style>
+/* ============================================================
+   设计令牌：墨绿纸感
+   paper 米白 / ink 墨 / moss 苔绿 / seal 印泥
+   ============================================================ */
+:root {
+  --paper:      #F6F4EF;
+  --paper-2:    #EFECE4;
+  --surface:    #FFFDF9;
+  --ink:        #17211D;
+  --ink-2:      #38443E;
+  --muted:      #5F6B64;
+  --muted-2:    #8A938C;
+  --line:       #E2DED4;
+  --line-2:     #D3CEC1;
+  --moss:       #1F5C4A;
+  --moss-hover: #17493B;
+  --moss-tint:  #E7F0EA;
+  --seal:       #A63A2E;
+  --seal-tint:  #FAEEEB;
+  --amber:      #8A5B12;
+  --amber-tint: #F7EEDC;
+  --radius-sm: 8px;
+  --radius:    12px;
+  --radius-lg: 18px;
+  --shadow-1:  0 1px 2px rgba(23,33,29,.05);
+  --shadow-2:  0 6px 20px -8px rgba(23,33,29,.18);
+  --hover:     #F9F7F2;
+  --top-bg:    #F7F5F0;
+  --search-bg: #F2EFE8;
+  --user-line: #CFE0D6;
+  --focus-ring: rgba(31,92,74,.12);
+  --press-ring: rgba(31,92,74,.26);
+  --warn-line: #E4CFA8;
+  --err-line:  #E7C4BE;
+  --ease:      cubic-bezier(.22,1,.36,1);
+  --serif: "Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;
+  --sans: "HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono: "JetBrains Mono",Consolas,"Courier New",monospace;
+}
+html[data-theme="night"] {
+  --paper:      #191D1A;
+  --paper-2:    #202521;
+  --surface:    #232925;
+  --ink:        #ECEFE8;
+  --ink-2:      #C9D1C9;
+  --muted:      #98A39A;
+  --muted-2:    #78837A;
+  --line:       #313833;
+  --line-2:     #3C443E;
+  --moss:       #7FBFA4;
+  --moss-hover: #93CEB5;
+  --moss-tint:  #1F2E27;
+  --seal:       #E08579;
+  --seal-tint:  #2E2321;
+  --amber:      #D6A85F;
+  --amber-tint: #2C2720;
+  --shadow-1:  0 1px 2px rgba(0,0,0,.25);
+  --shadow-2:  0 10px 28px -10px rgba(0,0,0,.55);
+  --hover:     #262C27;
+  --top-bg:    #1B211D;
+  --search-bg: #1E231F;
+  --user-line: #2E4438;
+  --focus-ring: rgba(127,191,164,.18);
+  --press-ring: rgba(127,191,164,.30);
+  --warn-line: #4A3D28;
+  --err-line:  #4A302C;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+::selection { background: var(--moss-tint); color: var(--ink); }
+
+/* 焦点可见：键盘用户必须有清晰反馈 */
+:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; border-radius: 6px; }
+
+/* ============================================================
+   骨架：侧栏 264 + 主区
+   ============================================================ */
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+}
+
+/* ---------- 侧栏 ---------- */
+.side {
+  background: var(--paper-2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 18px 14px;
+}
+.seal {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 1.5px solid var(--moss);
+  display: grid; place-items: center;
+  position: relative;
+}
+.seal::after {
+  content: ""; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--moss);
+}
+.brand b {
+  font: 600 16px/1 var(--serif);
+  letter-spacing: .04em;
+}
+.brand small {
+  display: block; margin-top: 4px;
+  font-size: 11px; color: var(--muted-2); letter-spacing: .08em;
+}
+
+.newchat {
+  margin: 4px 14px 12px;
+  height: 38px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: var(--shadow-1);
+  transition: background .16s var(--ease), border-color .16s var(--ease);
+}
+.newchat:hover { background: var(--moss-tint); border-color: var(--moss); }
+.newchat svg { width: 15px; height: 15px; }
+
+.search {
+  margin: 0 14px 10px;
+  display: flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background: var(--search-bg);
+  border: 1px solid transparent;
+}
+.search:focus-within { border-color: var(--line-2); background: var(--surface); }
+.search input {
+  flex: 1; min-width: 0; border: 0; background: none; outline: none;
+  font-size: 13px; color: var(--ink);
+}
+.search input::placeholder { color: var(--muted-2); }
+.search svg { width: 14px; height: 14px; color: var(--muted-2); flex: none; }
+
+.sessions { flex: 1; overflow: auto; padding: 4px 10px 10px; min-height: 0; }
+.sessions::-webkit-scrollbar { width: 8px; }
+.sessions::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; }
+
+.grp {
+  padding: 12px 8px 6px;
+  font-size: 11px; letter-spacing: .1em;
+  color: var(--muted-2);
+}
+.item {
+  position: relative;
+  display: block; width: 100%;
+  padding: 9px 10px 9px 12px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background .14s var(--ease);
+}
+.item:hover { background: var(--hover); }
+.item[aria-current="true"] { background: var(--surface); box-shadow: var(--shadow-1); }
+.item[aria-current="true"]::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px;
+  width: 2px; border-radius: 2px; background: var(--moss);
+}
+.item .t {
+  display: block;
+  font-size: 13.5px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.item .m {
+  display: block; margin-top: 2px;
+  font-size: 11.5px; color: var(--muted-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.side-foot {
+  border-top: 1px solid var(--line);
+  padding: 10px 14px 12px;
+}
+.row {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 6px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--ink-2);
+}
+.row:hover { background: var(--hover); }
+.row svg { width: 15px; height: 15px; color: var(--muted); flex: none; }
+.row .badge { margin-left: auto; font-size: 11px; color: var(--muted-2); }
+.dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--moss);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* ---------- 主区 ---------- */
+.main {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  background: var(--paper);
+}
+.top {
+  height: 56px; flex: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--line);
+  background: var(--top-bg);
+}
+.top h1 {
+  margin: 0; font: 600 15px/1.2 var(--sans);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.top .sub { font-size: 11.5px; color: var(--muted-2); margin-top: 3px; }
+.top .spacer { flex: 1; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 11px;
+  border: 1px solid var(--line-2);
+  border-radius: 99px;
+  background: var(--surface);
+  font-size: 12.5px;
+  transition: border-color .14s var(--ease), background .14s var(--ease);
+}
+.chip:hover { border-color: var(--moss); }
+.chip .k { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.chip svg { width: 13px; height: 13px; color: var(--muted); }
+
+.iconbtn {
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  display: grid; place-items: center; color: var(--muted);
+  transition: background .14s var(--ease), color .14s var(--ease);
+}
+.iconbtn:hover { background: var(--paper-2); color: var(--ink); }
+.iconbtn svg { width: 16px; height: 16px; }
+
+/* ---------- 消息区 ---------- */
+.feed {
+  flex: 1; overflow: auto; padding: 24px 0 8px;
+  scroll-behavior: smooth;
+}
+.feed::-webkit-scrollbar { width: 10px; }
+.feed::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; }
+.col { width: min(720px, calc(100% - 64px)); margin: 0 auto; }
+
+.divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 6px 0 22px;
+  font-size: 11px; letter-spacing: .12em; color: var(--muted-2);
+}
+.divider::before, .divider::after {
+  content: ""; height: 1px; flex: 1; background: var(--line);
+}
+
+.msg { margin-bottom: 26px; }
+.msg-user { display: flex; justify-content: flex-end; }
+.msg-user .body {
+  max-width: 78%;
+  padding: 11px 15px;
+  border-radius: var(--radius-lg) var(--radius-lg) 4px var(--radius-lg);
+  background: var(--moss-tint);
+  border: 1px solid var(--user-line);
+  color: var(--ink);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.msg-ai .who {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px; padding-left: 18px;   /* 与正文文字（2px 线 + 16 内距）对齐 */
+  font-size: 11.5px; color: var(--muted-2); letter-spacing: .04em;
+}
+.msg-ai .who b { font-weight: 600; color: var(--ink-2); font-size: 12px; }
+.msg-ai .body {
+  border-left: 2px solid var(--moss);
+  padding: 2px 0 2px 16px;
+  line-height: 1.78;
+  color: var(--ink);
+}
+.msg-ai .body p { margin: 0 0 10px; }
+.msg-ai .body p:last-child { margin-bottom: 0; }
+.msg-ai .body ul { margin: 0 0 10px; padding-left: 20px; }
+.msg-ai .body li { margin: 4px 0; }
+.msg-ai .body strong { font-weight: 600; }
+.msg-ai code {
+  font-family: var(--mono); font-size: 12.5px;
+  background: var(--paper-2); padding: 1px 5px; border-radius: 5px;
+}
+
+.acts {
+  display: flex; gap: 2px; margin-top: 10px;
+  opacity: 0; transition: opacity .16s var(--ease);
+}
+.msg-ai:hover .acts, .acts:focus-within { opacity: 1; }
+.acts button {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 9px; border-radius: 7px;
+  font-size: 12px; color: var(--muted);
+}
+.acts button:hover { background: var(--paper-2); color: var(--ink); }
+.acts svg { width: 13px; height: 13px; }
+
+/* 系统/错误提示：左对齐的内联卡片（不再居中的窄条） */
+.note {
+  display: flex; gap: 10px;
+  max-width: 560px;
+  margin: 0 0 24px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12.8px; line-height: 1.65;
+  color: var(--ink-2);
+}
+.note svg { width: 15px; height: 15px; flex: none; margin-top: 2px; color: var(--muted); }
+.note.warn { background: var(--amber-tint); border-color: var(--warn-line); }
+.note.warn svg { color: var(--amber); }
+.note.err { background: var(--seal-tint); border-color: var(--err-line); }
+.note.err svg { color: var(--seal); }
+.note b { color: var(--ink); }
+
+/* 思考中 */
+.thinking {
+  display: flex; align-items: center; gap: 9px;
+  color: var(--muted); font-size: 12.5px; margin-bottom: 22px;
+}
+.thinking .pulse {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--moss);
+  animation: pulse 1.5s var(--ease) infinite;
+}
+@keyframes pulse { 0%,100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
+
+/* 文档引用卡片 */
+.doc {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 10px; padding: 7px 11px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); font-size: 12px; color: var(--ink-2);
+}
+.doc svg { width: 14px; height: 14px; color: var(--moss); }
+.doc .pg { color: var(--muted-2); font-family: var(--mono); font-size: 11px; }
+
+/* ---------- 空状态 ---------- */
+.empty { padding: 44px 0 8px; }
+.empty h2 {
+  margin: 0 0 10px;
+  font: 600 26px/1.35 var(--serif);
+  letter-spacing: .01em;
+}
+.empty p.lead { margin: 0 0 28px; color: var(--muted); font-size: 13.5px; }
+.starters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 900px) { .starters { grid-template-columns: 1fr; } }
+.starter {
+  text-align: left; padding: 14px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface);
+  transition: transform .18s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.starter:hover { border-color: var(--moss); transform: translateY(-2px); box-shadow: var(--shadow-2); }
+.starter svg { width: 16px; height: 16px; color: var(--moss); }
+.starter b { display: block; margin: 9px 0 3px; font-size: 13px; font-weight: 600; }
+.starter span { font-size: 12px; color: var(--muted); }
+
+/* ---------- 输入区 ---------- */
+.composer-wrap { flex: none; padding: 8px 0 10px; background: linear-gradient(to top, var(--paper) 72%, transparent); }
+.composer {
+  width: min(720px, calc(100% - 64px)); margin: 0 auto;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: border-color .16s var(--ease), box-shadow .16s var(--ease);
+}
+.composer:focus-within {
+  border-color: var(--moss);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.attach { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px 0; }
+.attach:empty { display: none; }
+.filechip {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 28px; padding: 0 8px 0 9px;
+  border-radius: 8px;
+  background: var(--paper-2);
+  font-size: 12px; color: var(--ink-2);
+}
+.filechip svg { width: 13px; height: 13px; color: var(--moss); }
+.filechip .x { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; color: var(--muted-2); }
+.filechip .x:hover { background: var(--line); color: var(--ink); }
+
+.composer textarea {
+  width: 100%; display: block;
+  padding: 14px 16px 6px;
+  border: 0; background: none; outline: none; resize: none;
+  font: 14px/1.7 var(--sans); color: var(--ink);
+  max-height: 180px;
+}
+.composer textarea::placeholder { color: var(--muted-2); }
+
+.bar {
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 8px 8px 10px;
+}
+.tool {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 10px; border-radius: 8px;
+  font-size: 12.5px; color: var(--muted);
+  transition: background .14s var(--ease), color .14s var(--ease);
+}
+.tool:hover { background: var(--paper-2); color: var(--ink); }
+.tool svg { width: 15px; height: 15px; }
+.tool[aria-pressed="true"] {
+  background: var(--moss-tint); color: var(--moss);
+  box-shadow: inset 0 0 0 1px var(--press-ring);
+}
+.tool.rec { background: var(--seal-tint); color: var(--seal); box-shadow: inset 0 0 0 1px var(--err-line); }
+.bar .grow { flex: 1; }
+
+.send {
+  width: 34px; height: 30px; border-radius: 8px;
+  display: grid; place-items: center;
+  background: var(--moss); color: #fff;
+  transition: background .14s var(--ease), transform .14s var(--ease);
+}
+.send:hover { background: var(--moss-hover); transform: translateY(-1px); }
+.send svg { width: 16px; height: 16px; }
+/* 夜读模式下主色变浅，实心按钮要用深色图标才有足够对比（白字仅 2:1） */
+html[data-theme="night"] .send { color: #16211C; }
+
+.hints {
+  width: min(720px, calc(100% - 64px)); margin: 7px auto 0;
+  display: flex; align-items: center; gap: 14px;
+  font-size: 11px; color: var(--muted-2);
+}
+.hints .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.meter { width: 64px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 20%; background: var(--moss); }
+
+/* ---------- 模型选择浮层 ---------- */
+.pop {
+  position: absolute; top: 52px; right: 22px; z-index: 20;
+  width: 268px; padding: 6px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow-2);
+}
+.pop[hidden] { display: none; }
+.pop .hd { padding: 7px 10px 8px; font-size: 11px; letter-spacing: .1em; color: var(--muted-2); }
+.pop .opt {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 8px 10px; border-radius: 8px; text-align: left;
+}
+.pop .opt:hover { background: var(--paper-2); }
+.pop .opt .nm { font-size: 13px; font-family: var(--mono); }
+.pop .opt .sz { margin-left: auto; font-size: 11px; color: var(--muted-2); }
+.pop .opt .tick { width: 14px; height: 14px; color: var(--moss); opacity: 0; }
+.pop .opt[aria-selected="true"] .tick { opacity: 1; }
+.pop .tip { padding: 9px 10px 4px; font-size: 11px; color: var(--muted-2); border-top: 1px solid var(--line); margin-top: 4px; }
+
+/* ---------- 预览控制条（仅原型：贴右边缘的抽屉，hover 展开，不遮挡内容） ---------- */
+.demo {
+  position: fixed; right: 0; top: 68px; z-index: 40;
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px; border-radius: 11px 0 0 11px;
+  background: rgba(23,33,29,.92);
+  color: #F3F1EA;
+  box-shadow: 0 8px 24px -10px rgba(0,0,0,.55);
+  font-size: 11.5px;
+  transform: translateX(calc(100% - 48px));
+  transition: transform .22s var(--ease);
+}
+.demo:hover, .demo:focus-within { transform: translateX(0); }
+.demo span.lbl { padding: 0 6px; opacity: .6; }
+.demo button {
+  padding: 5px 9px; border-radius: 7px; color: inherit;
+  border: 1px solid transparent;
+}
+.demo button:hover { background: rgba(255,255,255,.12); }
+.demo button[aria-pressed="true"] { background: rgba(255,255,255,.9); color: #17211D; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  .feed { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= 侧栏 ================= -->
+  <aside class="side">
+    <div class="brand">
+      <div class="seal" aria-hidden="true"></div>
+      <div>
+        <b>离线</b>
+        <small>LOCAL · NO CLOUD</small>
+      </div>
+    </div>
+
+    <button class="newchat" id="newChat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      新建对话
+    </button>
+
+    <label class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input placeholder="搜索会话内容" aria-label="搜索会话">
+    </label>
+
+    <nav class="sessions" aria-label="会话列表">
+      <div class="grp">今天</div>
+      <button class="item" aria-current="true">
+        <span class="t">切换模型后输出 0000</span>
+        <span class="m">刚 · gemma3:4b</span>
+      </button>
+      <button class="item">
+        <span class="t">传感器标定报告要点</span>
+        <span class="m">14:02 · 2 个文档</span>
+      </button>
+      <button class="item">
+        <span class="t">把这段 Python 改成向量化</span>
+        <span class="m">11:36 · qwen2.5-coder</span>
+      </button>
+
+      <div class="grp">昨天</div>
+      <button class="item">
+        <span class="t">教师节方案初稿</span>
+        <span class="m">昨天 21:14</span>
+      </button>
+      <button class="item">
+        <span class="t">GOSPA 指标怎么解释</span>
+        <span class="m">昨天 16:50</span>
+      </button>
+    </nav>
+
+    <div class="side-foot">
+      <button class="row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v10"/><path d="M8 7a5 5 0 0 0 8 0"/><path d="M4 13a8 8 0 0 0 16 0"/><path d="M12 21v-4"/></svg>
+        记忆
+        <span class="badge">3 条</span>
+      </button>
+      <button class="row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.4-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6 2 2 0 1 1 14 4.6a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4z"/></svg>
+        设置
+      </button>
+      <div class="row" style="cursor:default">
+        <span class="dot" aria-hidden="true"></span>
+        Ollama 在线
+        <span class="badge">内存 4.3G 可用</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= 主区 ================= -->
+  <main class="main">
+    <header class="top">
+      <div style="min-width:0">
+        <h1>切换模型后输出 0000</h1>
+        <div class="sub">本地会话 · 已保存</div>
+      </div>
+      <div class="spacer"></div>
+
+      <button class="chip" id="modelBtn" aria-haspopup="true" aria-expanded="false">
+        <span class="k">gemma3:4b</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <button class="iconbtn" aria-label="导出为 Markdown">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      </button>
+      <button class="iconbtn" aria-label="更多操作">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+      </button>
+
+      <!-- 模型浮层 -->
+      <div class="pop" id="modelPop" hidden role="dialog" aria-label="选择模型">
+        <div class="hd">本地模型 · 切换会自动释放上一个</div>
+        <button class="opt" aria-selected="true">
+          <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m5 12 5 5L20 7"/></svg>
+          <span class="nm">gemma3:4b</span><span class="sz">2.5G</span>
+        </button>
+        <button class="opt" aria-selected="false">
+          <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m5 12 5 5L20 7"/></svg>
+          <span class="nm">gemma3:4b-vision</span><span class="sz">3.3G</span>
+        </button>
+        <button class="opt" aria-selected="false">
+          <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m5 12 5 5L20 7"/></svg>
+          <span class="nm">qwen3:4b</span><span class="sz">2.5G</span>
+        </button>
+        <button class="opt" aria-selected="false">
+          <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m5 12 5 5L20 7"/></svg>
+          <span class="nm">qwen2.5-coder:3b</span><span class="sz">2.1G</span>
+        </button>
+        <div class="tip">8B 及以上模型在 16G 内存的机器上较慢，建议一次只用一个。</div>
+      </div>
+    </header>
+
+    <div class="feed" id="feed">
+      <div class="col">
+        <div class="divider">今天 15:02</div>
+
+        <div class="msg msg-user">
+          <div class="body">为什么我切到 qwen3:8b 之后，回答会变成一串 0000？</div>
+        </div>
+
+        <div class="msg msg-ai">
+          <div class="who"><b>gemma3:4b</b> · 2.1s · 38 tok</div>
+          <div class="body">
+            <p>不是模型坏了，而是<strong>内存被多个模型占满</strong>了。Ollama 默认会把用过的模型留在内存里，16G 的机器上切两三次就会把可用内存吃干，推理随之退化成重复字符。</p>
+            <ul>
+              <li>现在切换模型时，程序会自动卸载上一个模型并提示「已释放内存」；</li>
+              <li>检测到 <code>0000</code> 这类退化输出时会直接丢弃，不再写进会话；</li>
+              <li>如果还出现，关掉浏览器多标签或 IDE 后重试即可。</li>
+            </ul>
+          </div>
+          <div class="acts">
+            <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>复制</button>
+            <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 9a4 4 0 0 1 0 6"/><path d="M18 6a8 8 0 0 1 0 12"/></svg>朗读</button>
+            <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>重试</button>
+          </div>
+          <div class="doc">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+            内存排查记录.pdf <span class="pg">p.2 · [1]</span>
+          </div>
+        </div>
+
+        <div class="note warn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 9v5"/><circle cx="12" cy="17" r=".6" fill="currentColor"/><path d="M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+          <div><b>内存余量偏低（4.3G）。</b>再加载 8B 模型可能导致输出异常，建议先关闭浏览器标签。</div>
+        </div>
+
+        <!-- 演示：思考中 -->
+        <div class="thinking" data-state="thinking">
+          <span class="pulse"></span> 正在思考草稿…
+        </div>
+
+        <div class="msg msg-ai" data-state="thinking" hidden>
+          <div class="who"><b>gemma3:4b</b> · 草稿</div>
+          <div class="body"><p>草稿内容会先显示在这里，自检通过后再替换为定稿。</p></div>
+        </div>
+
+        <div class="msg msg-user">
+          <div class="body">那我现在应该切回 4B 还是直接用 gemma3？</div>
+        </div>
+
+        <div class="msg msg-ai">
+          <div class="who"><b>gemma3:4b</b> · 1.4s</div>
+          <div class="body">
+            <p>日常问答用 <strong>gemma3:4b</strong> 最稳；只有在需要更强推理时才切 8B，且切之前先关掉占内存的程序。</p>
+          </div>
+          <div class="acts">
+            <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>复制</button>
+            <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 9a4 4 0 0 1 0 6"/><path d="M18 6a8 8 0 0 1 0 12"/></svg>朗读</button>
+          </div>
+        </div>
+
+        <!-- 演示：错误态 -->
+        <div class="note err" data-state="error" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/></svg>
+          <div><b>模型「qwen3:8b」没有正常输出</b>（返回重复字符 <code>0000…</code>），结果已丢弃、未存入会话。<br>① 换一个模型试（会自动释放内存）；② 关掉大程序后重试。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <div class="attach" id="attach">
+          <span class="filechip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+            传感器标定.pdf
+            <button class="x" aria-label="移除附件">×</button>
+          </span>
+        </div>
+        <textarea id="input" rows="1" placeholder="问点什么，或把文件拖进来…"></textarea>
+        <div class="bar">
+          <button class="tool" id="docBtn" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+            文档
+          </button>
+          <button class="tool" id="micBtn" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
+            <span id="micLabel">语音</span>
+          </button>
+          <button class="tool" id="deepBtn" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3c3 3.5 5 6.4 5 9a5 5 0 0 1-10 0c0-2.6 2-5.5 5-9Z"/><path d="M12 12v4"/></svg>
+            深度
+          </button>
+          <span class="grow"></span>
+          <button class="send" aria-label="发送">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m5 12 14-7-4 7 4 7z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="hints">
+        <span>Enter 发送 · Shift+Enter 换行</span>
+        <span class="right">
+          上下文 1.2k / 6k
+          <span class="meter" aria-hidden="true"><i></i></span>
+        </span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 原型控制：仅用于评审，不属于产品界面 -->
+<div class="demo" role="group" aria-label="原型预览控制">
+  <span class="lbl">预览</span>
+  <button id="tThinking" aria-pressed="false">思考中</button>
+  <button id="tError" aria-pressed="false">错误态</button>
+  <button id="tRec" aria-pressed="false">录音</button>
+  <button id="tTheme" aria-pressed="false">夜读</button>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+// 模型浮层
+const modelBtn = $("#modelBtn"), pop = $("#modelPop");
+modelBtn.addEventListener("click", () => {
+  const open = pop.hasAttribute("hidden");
+  pop.toggleAttribute("hidden", !open);
+  modelBtn.setAttribute("aria-expanded", String(open));
+});
+document.addEventListener("click", (e) => {
+  if (!pop.hidden && !pop.contains(e.target) && !modelBtn.contains(e.target)) {
+    pop.hidden = true; modelBtn.setAttribute("aria-expanded", "false");
+  }
+  if (!pop.hidden) {
+    const opt = e.target.closest(".opt");
+    if (opt) {
+      $$(".opt", pop).forEach(o => o.setAttribute("aria-selected", "false"));
+      opt.setAttribute("aria-selected", "true");
+      const nm = opt.querySelector(".nm").textContent;
+      modelBtn.querySelector(".k").textContent = nm;
+      pop.hidden = true; modelBtn.setAttribute("aria-expanded", "false");
+    }
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { pop.hidden = true; modelBtn.setAttribute("aria-expanded", "false"); }
+});
+
+// 会话切换（仅视觉）
+$$(".item").forEach(it => it.addEventListener("click", () => {
+  $$(".item").forEach(o => o.setAttribute("aria-current", "false"));
+  it.setAttribute("aria-current", "true");
+  $(".top h1").textContent = it.querySelector(".t").textContent;
+}));
+
+// 输入框自适应高度
+const input = $("#input");
+const fit = () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 180) + "px"; };
+input.addEventListener("input", fit);
+
+// 预览开关
+const toggle = (btn, fn) => btn.addEventListener("click", () => {
+  const on = btn.getAttribute("aria-pressed") !== "true";
+  btn.setAttribute("aria-pressed", String(on));
+  fn(on);
+});
+toggle($("#tThinking"), on => {
+  $$('[data-state="thinking"]').forEach(el => el.hidden = !on);
+  if (on) $("#feed").scrollTop = $("#feed").scrollHeight;
+});
+toggle($("#tError"), on => { $$('[data-state="error"]').forEach(el => el.hidden = !on); });
+toggle($("#tRec"), on => {
+  const b = $("#micBtn"), l = $("#micLabel");
+  b.classList.toggle("rec", on);
+  b.setAttribute("aria-pressed", String(on));
+  l.textContent = on ? "录音中…" : "语音";
+});
+toggle($("#tTheme"), on => {
+  document.documentElement.dataset.theme = on ? "night" : "paper";
+});
+</script>
+</body>
+</html>

@@ -23,6 +23,9 @@ build_fix.log
 zip_log.txt
 *.uploading.cfg
 
+# ===== 本地会话/设置数据（dev 态 chatui/data，含用户对话内容）=====
+chatui/data/
+
 # ===== 接收方诊断日志（含个人信息，不入库）=====
 chatui/recipient_logs_20261014/
 
@@ -30,3 +33,14 @@ chatui/recipient_logs_20261014/
 .DS_Store
 Thumbs.db
 *.swp
+
+# ===== 新增：构建中间产物与本地资源（2026-10-18）=====
+chatui/build_full/
+chatui/build_lite/
+chatui/dist_new/
+chatui/dist_lite/
+# 本地向量模型（292MB），按需从 ModelScope 拉取
+chatui/model_assets/
+.offline-bridge/
+*.zip
+chatui/*.log

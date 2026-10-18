@@ -11,7 +11,8 @@ import urllib.request
 import urllib.error
 
 OLLAMA = r"C:\Users\mrhua\AppData\Local\Programs\Ollama\ollama.exe"
-DL = r"E:\Workbuddy\2026-10-11-17-27-15\offline-ai\chatui\gguf_models"
+# 权重目录跟着脚本走：项目迁移后写死绝对路径会下载到不存在的旧目录
+DL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gguf_models")
 os.makedirs(DL, exist_ok=True)
 
 # 本地请求不走代理(沙箱/企业代理会劫持)

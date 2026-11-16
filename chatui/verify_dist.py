@@ -7,6 +7,7 @@
   3. _internal 根目录无 Ollama 运行库污染(ggml/libllama/libc++ 等)  ← 本轮修复
   4. _internal/ollama/lib/ollama/ 合法副本未被误删
   5. diagnose.bat 已就位且为 CRLF
+  6. 2026-11-16: 产物 config.yaml 与源码一致 + piper/espeak-ng-data 已打包
 """
 import json
 import os
@@ -73,6 +74,25 @@ for extra in ["start_models_on_D.bat", "uninstall_offline_chat.bat"]:
         raw = open(p, "rb").read()
         need(b"\r\n" in raw and raw.replace(b"\r\n", b"").find(b"\n") == -1,
              "%s 为 CRLF 换行" % extra)
+
+print("== 6. 配置一致性 + 语音资源 (2026-11-16) ==")
+src_cfg = os.path.join(HERE, os.pardir, "config.yaml")
+dst_cfg = os.path.join(INT, "config.yaml")
+if os.path.isfile(src_cfg) and os.path.isfile(dst_cfg):
+    def _key_val(path, key):
+        for line in open(path, encoding="utf-8"):
+            s = line.strip()
+            if s.startswith(key + ":"):
+                return s.split(":", 1)[1].split("#", 1)[0].strip()
+        return None
+    for key in ("model", "num_ctx", "keep_alive"):
+        sv, dv = _key_val(src_cfg, key), _key_val(dst_cfg, key)
+        need(sv == dv, "config.yaml %s 一致 (源码 %r / 产物 %r)" % (key, sv, dv))
+else:
+    need(False, "源码/产物 config.yaml 均存在以校验一致性")
+espeak = os.path.join(INT, "piper", "espeak-ng-data")
+need(os.path.isdir(espeak) and len(os.listdir(espeak)) > 0,
+     "piper/espeak-ng-data 已打包（否则冻结态 TTS 静音）")
 
 if fails:
     print("\n校验未通过 %d 项, 中止打包!" % len(fails))

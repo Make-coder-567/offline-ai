@@ -1,9 +1,10 @@
 # 离线AI智能体配置
 # 修改 model 以适配你的硬件：本机(16GB/纯CPU, 空闲~5GB)推荐 ≤4B；有独显的机器可用 7b/8b
 model: "gemma3:4b"                    # 默认: 无 thinking 模式、直出 content、中文质量稳定
-num_ctx: 6144                         # 关键: qwen3:4b 在 Ollama 上 num_ctx=4096 会输出乱码(实测),
-                                      # 3072/6144/8192 均正常; gemma3:4b 在 6144 下亦实测正常
-keep_alive: "10m"                      # 模型闲置 10 分钟后卸载, 平衡 首token延迟 vs 内存占用
+num_ctx: 3072                         # 内存优化: 从 6144 降到 3072, KV cache 约减半(纯CPU 16GB 机器空闲仅~5GB)
+                                      # 注意: qwen3:4b 在 4096 会输出乱码(实测), 3072/6144/8192 均正常; 若需超长上下文再回 6144
+keep_alive: "5m"                       # 模型闲置 5 分钟后卸载(原 10m), 减少多路由模型叠加常驻; 频繁切换大模型的冷加载会偏慢
+                                      # 进阶: 在 Ollama 启动处设 OLLAMA_MAX_LOADED_MODELS=1, 强制同时只驻留 1 个模型(在系统环境变量或启动脚本中设置)
 # 任务类型 → 模型路由（agent 任务可带 task_type 字段；MCP 的代码/视觉工具也走这里）
 routes:
   code: "qwen2.5-coder:3b"

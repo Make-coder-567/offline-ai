@@ -26,6 +26,21 @@ import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
+import re
+
+# 合法 task_id：仅字母/数字/下划线/短横线/点，且不得以点开头、不得含路径分隔符。
+# 2026-11-16 加固：task_id 直接来自 inbox JSON，会被拼进 outbox 文件名与
+# cancel 标记路径，历史上未校验导致 "../evil" 越界读写/删除。
+_TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def safe_task_id(task_id: str) -> str:
+    """校验并规范化 task_id；非法值抛 ValueError。"""
+    if not isinstance(task_id, str) or not task_id:
+        raise ValueError("task_id 不能为空且必须是字符串")
+    if not _TASK_ID_RE.match(task_id) or ".." in task_id:
+        raise ValueError(f"非法 task_id（含路径分隔或越界序列）: {task_id!r}")
+    return task_id
 
 
 @dataclass
@@ -45,7 +60,7 @@ class Task:
     @classmethod
     def from_dict(cls, d: dict) -> "Task":
         return cls(
-            task_id=d["task_id"],
+            task_id=safe_task_id(d["task_id"]),
             prompt=d["prompt"],
             files=d.get("files", []),
             status=d.get("status", "pending"),
@@ -107,10 +122,11 @@ class Bridge:
         self._atomic_write(path, json.dumps(task.to_dict(), ensure_ascii=False, indent=2))
 
     def write_outbox(self, task: Task) -> Path:
-        out = self.outbox_path() / f"{task.task_id}.json"
+        tid = safe_task_id(task.task_id)  # 写入前兜底校验，防绕过 from_dict 直接构造 Task
+        out = self.outbox_path() / f"{tid}.json"
         if out.exists():
             # 同 id 重复提交时加纳秒后缀，避免同一秒内覆盖上一次结果
-            out = self.outbox_path() / f"{task.task_id}-{time.time_ns()}.json"
+            out = self.outbox_path() / f"{tid}-{time.time_ns()}.json"
         self._atomic_write(out, json.dumps(task.to_dict(), ensure_ascii=False, indent=2))
         return out
 

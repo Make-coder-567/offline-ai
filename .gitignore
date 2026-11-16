@@ -37,10 +37,14 @@ Thumbs.db
 # ===== 新增：构建中间产物与本地资源（2026-10-18）=====
 chatui/build_full/
 chatui/build_lite/
+chatui/build_rebuild/
 chatui/dist_new/
 chatui/dist_lite/
+chatui/dist_rebuild/
 # 本地向量模型（292MB），按需从 ModelScope 拉取
 chatui/model_assets/
 .offline-bridge/
 *.zip
 chatui/*.log
+# 本机诊断脚本（跨项目用途，不纳入版本库）
+mem_check.py

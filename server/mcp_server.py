@@ -76,8 +76,8 @@ def _gen(prompt: str, temperature: float = 0.3, model: str = None,
     model = model or cfg["model"]
     _unload(cfg, model)
     options = {"temperature": temperature,
-               "num_ctx": int(cfg.get("num_ctx", 6144)),
-               "keep_alive": cfg.get("keep_alive", "10m")}
+               "num_ctx": int(cfg.get("num_ctx", 3072)),
+               "keep_alive": cfg.get("keep_alive", "5m")}
     try:
         if ctx is None:
             r = ollama.generate(model=model,
@@ -330,7 +330,7 @@ def local_llm_vision(image_path: str, prompt: str = "请用中文描述这张图
             model=_vision_model,
             messages=[{"role": "user", "content": prompt, "images": [b64]}],
             options={"temperature": 0.2,
-                     "keep_alive": cfg.get("keep_alive", "10m")},
+                     "keep_alive": cfg.get("keep_alive", "5m")},
         )
         msg = r.get("message", {}) or {}
         return _clean_response(msg.get("content") or msg.get("thinking") or "")
@@ -512,11 +512,14 @@ def local_memory_search(query: str = "", top_k: int = 8) -> str:
 
 
 @mcp.tool()
-def local_memory_forget(keyword: str) -> str:
-    """从长期记忆里删除包含该关键词的条目（用户要求"忘掉某事"时用）。"""
+def local_memory_forget(keyword: str, confirm: bool = False) -> str:
+    """从长期记忆里删除包含该关键词的条目（用户要求"忘掉某事"时用）。
+
+    关键词为空会被拒绝；若该关键词命中全部记忆，首次调用只返回确认提示，
+    需再次调用并设 confirm=True 才会真正清空。"""
     from server.memory import forget
     from server.paths import data_dir
-    return forget(data_dir(), keyword)
+    return forget(data_dir(), keyword, confirm=confirm)
 
 
 # ==================== 定时任务 ====================

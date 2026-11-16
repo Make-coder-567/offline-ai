@@ -61,12 +61,22 @@ def remember(data_dir, fact: str) -> str:
     return "[ok] 已记住：%s" % fact[:60]
 
 
-def forget(data_dir, keyword: str) -> str:
-    """删除包含关键词的条目，返回删除条数。"""
+def forget(data_dir, keyword: str, confirm: bool = False) -> str:
+    """删除包含关键词的条目，返回删除条数。
+
+    2026-11-16 修复：空关键词会让 `'' in text` 恒为真、误删整库，
+    因此在核心层拒绝空/纯空白关键词；若命中全部条目（会清空整库），
+    必须显式 confirm=True 才执行（二次确认），防止模型误传宽泛关键词。"""
+    keyword = " ".join((keyword or "").split()).strip()
+    if not keyword:
+        return "[error] 关键词为空，拒绝删除（防止清空整个记忆库）。请提供明确关键词。"
     p = memory_path(data_dir)
     rows = _read(p)
     keep = [(d, t) for d, t in rows if keyword.lower() not in t.lower()]
     n = len(rows) - len(keep)
+    if n == len(rows) and rows and not confirm:
+        return ("[confirm] 关键词「%s」会删除全部 %d 条记忆。如确认清空，"
+                "请再次调用并设 confirm=True。" % (keyword, n))
     if n:
         _write(p, keep)
     return "[ok] 删除 %d 条" % n

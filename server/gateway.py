@@ -28,6 +28,24 @@ sys.path.insert(0, str(ROOT))
 
 OLLAMA = "http://127.0.0.1:11434"
 DEFAULT_MODEL = "gemma3:4b"
+# 2026-11-16：与 config.yaml 收敛，不再硬编码旧的 6144/10m
+DEFAULT_NUM_CTX = 3072
+DEFAULT_KEEP_ALIVE = "5m"
+
+
+def load_defaults() -> dict:
+    """从 config.yaml 读取推理默认参数；文件缺失/损坏时回退到上面常量。"""
+    import yaml
+    try:
+        cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8")) or {}
+        return {
+            "model": cfg.get("model") or DEFAULT_MODEL,
+            "num_ctx": int(cfg.get("num_ctx", DEFAULT_NUM_CTX)),
+            "keep_alive": cfg.get("keep_alive", DEFAULT_KEEP_ALIVE),
+        }
+    except Exception:
+        return {"model": DEFAULT_MODEL, "num_ctx": DEFAULT_NUM_CTX,
+                "keep_alive": DEFAULT_KEEP_ALIVE}
 DEFAULT_PORT = 8080
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -130,8 +148,8 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             pass
         options = {"temperature": req.get("temperature", 0.3),
-                   "num_ctx": int(req.get("num_ctx", 6144)),
-                   "keep_alive": "10m"}
+                   "num_ctx": int(req.get("num_ctx", getattr(self, "num_ctx", DEFAULT_NUM_CTX))),
+                   "keep_alive": getattr(self, "keep_alive", DEFAULT_KEEP_ALIVE)}
         if req.get("max_tokens"):
             options["num_predict"] = int(req["max_tokens"])
         payload = {"model": model, "messages": messages, "options": options,
@@ -196,7 +214,10 @@ def main():
     args = ap.parse_args()
 
     OLLAMA = args.ollama.replace("localhost", "127.0.0.1")
-    Handler.model_default = args.model
+    defaults = load_defaults()
+    Handler.model_default = args.model if args.model != DEFAULT_MODEL else defaults["model"]
+    Handler.num_ctx = defaults["num_ctx"]
+    Handler.keep_alive = defaults["keep_alive"]
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
     print("[gateway] http://%s:%d/v1  ->  %s  (默认模型 %s)"
           % (args.host, args.port, OLLAMA, args.model), flush=True)

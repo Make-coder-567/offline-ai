@@ -9,8 +9,11 @@ import shutil
 import subprocess
 import sys
 
-OLLAMA = r"C:\Users\mrhua\AppData\Local\Programs\Ollama\ollama.exe"
-OUT = r"E:\Workbuddy\离线AI\offline-ai\chatui\gguf_models"
+# 2026-11-16：去掉作者机器硬编码路径，改为 PATH 查找 + 脚本相对目录
+OLLAMA = (shutil.which("ollama")
+          or os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe")
+          or r"C:\Users\mrhua\AppData\Local\Programs\Ollama\ollama.exe")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gguf_models")
 
 # 分发清单里的 10 个模型（与 bundle_manifest.json 对应）
 MODELS = {

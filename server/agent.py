@@ -71,8 +71,8 @@ def run_llm(cfg: dict, prompt: str, temperature: float = 0.3,
     # 本机内存有限：先把别的模型卸掉，否则 KV 分配失败会让输出退化成乱码
     _unload(cfg, model)
     options = {"temperature": temperature,
-               "num_ctx": int(cfg.get("num_ctx", 6144)),
-               "keep_alive": cfg.get("keep_alive", "10m")}
+               "num_ctx": int(cfg.get("num_ctx", 3072)),
+               "keep_alive": cfg.get("keep_alive", "5m")}
     if num_predict:
         options["num_predict"] = int(num_predict)
     try:
@@ -294,7 +294,7 @@ def handle_task(cfg: dict, bridge: Bridge, task: Task, tools: Tools) -> str:
     last_obs = ""
     seen = set()          # (action, arg) 去重，防模型原地空转耗尽步数
     fails = {}            # (action, arg) → 连续失败次数
-    steps = []            # 只保留最近 2 步，避免 prompt 随步数膨胀撑爆 6144 上下文
+    steps = []            # 只保留最近 2 步，避免 prompt 随步数膨胀撑爆上下文窗口
     for step in range(max_steps):
         if bridge is not None and _cancel_requested(bridge, task.task_id):
             raise TaskCancelled()          # 步间取消：不打断当前推理，但不再进入下一步
@@ -379,7 +379,7 @@ def main() -> None:
     # 写操作默认允许（带快照 + 审计可回滚）；代码执行默认关闭，需显式开启
     agent_cfg = cfg.get("agent") or {}
     audit = Audit(cfg["workspace_root"])
-    tools = Tools(ws,
+    tools = Tools(cfg["workspace_root"],
                   allow_python=bool(agent_cfg.get("allow_python", False)),
                   audit=audit)
     # 定时任务：与 agent 同进程后台跑，结果写 <data>/schedule.log

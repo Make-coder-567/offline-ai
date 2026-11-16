@@ -18,7 +18,9 @@ import sys
 CHATUI = os.path.dirname(os.path.abspath(__file__))
 GGUF_DIR = os.path.join(CHATUI, "gguf_models")
 BUNDLE_DIR = os.path.join(CHATUI, "bundle_models")
-OL = shutil.which("ollama") or r"C:\Users\mrhua\AppData\Local\Programs\Ollama\ollama.exe"
+# 2026-11-16：优先 PATH，再回退按当前用户目录推导，不再绑定作者机器
+OL = (shutil.which("ollama")
+      or os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"))
 
 # 单 GGUF 模型(<=4B 实用集, 共 9 个)。键=模型名, 值=gguf_models 中的文件名。
 MODELS = {

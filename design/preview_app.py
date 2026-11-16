@@ -5,11 +5,14 @@
 """
 import os
 import sys
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_QPA_FONTDIR", r"C:\Windows\Fonts")
-sys.path.insert(0, r"E:\Workbuddy\离线AI\offline-ai")
-sys.path.insert(0, r"E:\Workbuddy\离线AI\offline-ai\chatui")
+# 2026-11-16：去掉硬编码绝对路径，改为相对脚本定位
+_ROOT = str(Path(__file__).resolve().parents[1])
+sys.path.insert(0, _ROOT)
+sys.path.insert(0, os.path.join(_ROOT, "chatui"))
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -72,7 +75,7 @@ for _ in range(3):
     app.processEvents()
 w.status.set_state("online", "Ollama 在线")
 
-OUT = r"E:\Workbuddy\离线AI\offline-ai\design"
+OUT = os.path.dirname(os.path.abspath(__file__))
 
 
 def shot(name, bottom=False):

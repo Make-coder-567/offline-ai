@@ -11,7 +11,10 @@ import time
 import urllib.request
 import urllib.error
 
-OLLAMA = r"C:\Users\mrhua\AppData\Local\Programs\Ollama\ollama.exe"
+# 2026-11-16：优先 PATH 查找，回退常见安装位置；不再把作者机器路径写死为唯一来源
+OLLAMA = (shutil.which("ollama")
+          or os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe")
+          or r"C:\Users\mrhua\AppData\Local\Programs\Ollama\ollama.exe")
 # 权重目录跟着脚本走：项目迁移后写死绝对路径会下载到不存在的旧目录
 DL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gguf_models")
 os.makedirs(DL, exist_ok=True)

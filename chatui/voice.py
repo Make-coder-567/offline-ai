@@ -290,6 +290,15 @@ def _tts_voice():
         piper = _require("piper", "piper")
         if piper is None:
             raise RuntimeError("未安装 piper-tts：%s" % _missing.get("piper"))
+        # 让 espeak-ng 找到打包后的数据目录（含中文音素化所需的 phontab / cmn_dict 等）。
+        # 不设置且数据未被打包时，espeak-ng 会回退到编译时硬编码的构建机路径而报错/出静音。
+        try:
+            _ed = os.path.join(os.path.dirname(os.path.abspath(piper.__file__)),
+                               "espeak-ng-data")
+            if os.path.isdir(_ed):
+                os.environ.setdefault("ESPEAK_DATA_PATH", _ed)
+        except Exception:
+            pass
         model = tts_model()
         if not model.is_file():
             raise RuntimeError("缺少语音合成模型：%s" % model)
@@ -332,54 +341,182 @@ def _clean_for_speech(text: str) -> str:
     return t.strip()
 
 
-_speaking = False
+# ---------------- 合成 / 播放（后台线程，绝不阻塞 GUI） ----------------
+# 设计权衡：早期版本用「每点一次朗读就开一个子进程」做崩溃隔离，但本程序是
+# PyInstaller onefile 单文件打包——每次子进程启动都会把 460MB+ 的归档重新解包到
+# %TEMP%/_MEIxxxx（该目录每次新建、不复用），既造成每次点击卡顿十几秒，又持续
+# 往磁盘写 460MB 临时目录直到占满。而实测冻结态 piper 合成不会原生崩溃（退出码 0），
+# 因此改用后台线程：零额外解包、即时响应，且通过 winsound.SND_PURGE 能真正中断播放
+# （子进程方案因 SND_PURGE 只在进程内生效，反而停不掉另一进程的播放，是个隐藏 bug）。
+_current_thread = None
+_current_stop = None
 
 
 def is_speaking() -> bool:
-    return _speaking
-
-
-def speak(text: str) -> bool:
-    """后台线程朗读（winsound 同步播放 + 线程包装）；返回是否启动成功。"""
-    global _speaking
-    try:
-        import winsound
-    except Exception:
-        return False
-    try:
-        data = synthesize(text)
-    except Exception:
-        return False
-    if not data:
-        return False
-    fd, path = tempfile.mkstemp(suffix=".wav", prefix="offline_tts_")
-    os.close(fd)
-    with open(path, "wb") as f:
-        f.write(data)
-
-    def _play():
-        global _speaking
-        _speaking = True
-        try:
-            winsound.PlaySound(path, winsound.SND_FILENAME)
-        except Exception:
-            pass
-        finally:
-            _speaking = False
-            try:
-                os.unlink(path)          # 播放结束才删，删早了会静音
-            except OSError:
-                pass
-
-    threading.Thread(target=_play, daemon=True).start()
-    return True
+    return _current_thread is not None and _current_thread.is_alive()
 
 
 def stop_speaking():
-    global _speaking
+    """停止朗读：置停止标志 + 清掉正在播放的声音。
+
+    播放是在后台线程里同步调用的 winsound.PlaySound；SND_PURGE 在进程内生效，
+    因此从 GUI 线程发起即可中断后台线程的播放，按钮随后由 on_done / on_error 复位。
+    """
+    global _current_thread, _current_stop
+    if _current_stop is not None:
+        _current_stop.set()
     try:
         import winsound
         winsound.PlaySound(None, winsound.SND_PURGE)
     except Exception:
         pass
-    _speaking = False
+
+
+def speak(text: str, on_done=None, on_error=None) -> bool:
+    """在后台线程里合成并朗读，GUI 线程绝不阻塞、也绝不被合成耗时拖卡。
+
+    返回 True 表示朗读线程已启动；返回 False 表示预检失败（触发 on_error）。
+    on_done：播放完成；on_error：预检失败或合成/播放异常。
+    调用方请保证 on_done / on_error 线程安全（GUI 侧用 QTimer.singleShot 抛回主线程）。
+    """
+    global _current_thread, _current_stop
+    stop_speaking()                      # 先停下上一段，避免叠加
+
+    try:
+        import winsound
+    except Exception:
+        if on_error:
+            on_error("当前系统不支持语音朗读（缺少 winsound 模块）")
+        return False
+
+    if not tts_available():
+        if on_error:
+            on_error("朗读组件不可用（缺少语音模型或 piper 依赖）")
+        return False
+
+    cleaned = _clean_for_speech(text or "")[:MAX_TTS_CHARS]
+    if not cleaned:
+        if on_error:
+            on_error("没有可朗读的内容")
+        return False
+
+    stop = threading.Event()
+    _current_stop = stop
+
+    def _run():
+        global _current_thread
+        try:
+            data = synthesize(cleaned)
+            if stop.is_set() or not data:
+                return
+            fd, wav = tempfile.mkstemp(suffix=".wav", prefix="offline_tts_")
+            os.close(fd)
+            try:
+                with open(wav, "wb") as f:
+                    f.write(data)
+                import winsound
+                # 后台线程内同步播放：不阻塞 GUI；用户点"停止"会触发 SND_PURGE 中断。
+                try:
+                    winsound.PlaySound(wav, winsound.SND_FILENAME)
+                except Exception:
+                    pass
+            finally:
+                try:
+                    os.unlink(wav)
+                except OSError:
+                    pass
+            if stop.is_set():
+                return                      # 用户中途停止，不算完成
+            if on_done:
+                try:
+                    on_done()
+                except Exception:
+                    pass
+        except Exception as e:
+            if not stop.is_set() and on_error:
+                try:
+                    on_error("朗读出错：%s" % e)
+                except Exception:
+                    pass
+        finally:
+            if _current_thread is threading.current_thread():
+                _current_thread = None
+
+    t = threading.Thread(target=_run, daemon=True)
+    _current_thread = t
+    t.start()
+    return True
+
+
+# ---------------- 诊断入口（仅供测试冻结态 TTS，不参与正常朗读） ----------------
+def run_worker_from_file(path: str, dump_path: str | None = None):
+    """独立合成 + 播放（或导出 WAV），用于在不启动 GUI 的情况下验证打包后的 TTS。
+
+    设了 OFFLINE_TTS_DUMP 环境变量（或传 --dump）时，把 WAV 写到该路径并额外写
+    .diag 日志，方便在 console=False 的冻结包里确认"是否真的合成了有声音频"。
+    """
+    text = ""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except Exception as e:
+        _diag("READ_ERROR", str(e))
+        return
+    if not text:
+        return
+    try:
+        data = synthesize(text)
+        if not data:
+            _diag("EMPTY", "synthesize returned empty bytes")
+            return
+        if dump_path:
+            with open(dump_path, "wb") as f:
+                f.write(data)
+            _diag("OK", "bytes=%d" % len(data))
+        else:
+            fd, wav = tempfile.mkstemp(suffix=".wav", prefix="offline_tts_")
+            os.close(fd)
+            try:
+                with open(wav, "wb") as f:
+                    f.write(data)
+                import winsound
+                winsound.PlaySound(wav, winsound.SND_FILENAME)
+            finally:
+                try:
+                    os.unlink(wav)
+                except OSError:
+                    pass
+    except Exception as e:
+        _diag("ERROR", repr(e))
+
+
+def _diag(status: str, detail: str = ""):
+    """把诊断结果写到 dump 同目录的 .diag 文件（console=False 时也能取证）。"""
+    import datetime
+    dump = os.environ.get("OFFLINE_TTS_DUMP")
+    base = (dump + ".diag") if dump else os.path.join(
+        tempfile.gettempdir(), "offline_tts_diag.txt")
+    try:
+        with open(base, "a", encoding="utf-8") as f:
+            f.write("[%s] %s %s\n" % (
+                datetime.datetime.now().isoformat(timespec="seconds"),
+                status, detail))
+    except Exception:
+        pass
+    try:
+        sys.stderr.write("%s %s\n" % (status, detail))
+    except Exception:
+        pass
+
+
+if __name__ == "__main__":
+    # 诊断入口：python -m voice --speak-file <path> [--dump <wav>]
+    # 仅用于开发/打包自检；正常朗读走 speak() 的后台线程，不走这里。
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--speak-file", dest="speak_file")
+    ap.add_argument("--dump", dest="dump",
+                    default=os.environ.get("OFFLINE_TTS_DUMP"))
+    ns = ap.parse_args()
+    if ns.speak_file:
+        run_worker_from_file(ns.speak_file, ns.dump)

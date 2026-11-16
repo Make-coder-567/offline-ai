@@ -38,14 +38,34 @@ class Tools:
     _MAX_SEARCH_HITS = 30
 
     # ---- run_python 沙箱：只做纯计算，不给文件/网络/进程能力 ----
+    # 2026-11-16 加固：补 builtins/__builtin__，堵 "import builtins; builtins.open" 逃逸
     _PY_DENY_MODULES = {
         "os", "sys", "subprocess", "socket", "ctypes", "importlib", "shutil",
         "webbrowser", "pickle", "multiprocessing", "signal", "pty", "platform",
         "requests", "urllib", "urllib2", "http", "ftplib", "smtplib", "telnetlib",
         "paramiko", "asyncio", "threading", "tempfile", "glob", "sqlite3",
+        "builtins", "__builtin__", "code", "codeop", "runpy",
     }
     _PY_DENY_CALLS = {"eval", "exec", "compile", "__import__", "open", "input",
-                      "exit", "quit", "help", "globals", "locals", "vars"}
+                      "exit", "quit", "help", "globals", "locals", "vars",
+                      # getattr/setattr/delattr 是 dunder 逃逸的核心跳板（正常计算极少用）
+                      "getattr", "setattr", "delattr", "breakpoint"}
+    # 危险属性调用名：不论通过哪个对象调用都禁止。
+    # 关键：拦 "builtins.open(...)" / "some.eval(...)" / "x.system(...)"——
+    # 旧版只看 ast.Name，属性形式（ast.Attribute）全部放行，可被轻易绕过。
+    _PY_DENY_ATTRS = {
+        "open", "eval", "exec", "compile", "__import__", "getattr", "setattr",
+        "delattr", "system", "popen", "spawn", "spawnl", "execv", "execve",
+        "fork", "kill", "unlink", "rmdir", "removedirs", "writelines",
+    }
+    # dunder 逃逸常用字符串常量，作为 Call 参数出现时拦截（双保险：即使
+    # getattr 漏过，也拿不到 __class__/__subclasses__ 等跳板）
+    _PY_DUNDER_TOKENS = (
+        "__class__", "__base__", "__bases__", "__subclasses__", "__globals__",
+        "__builtins__", "__import__", "__mro__", "__dict__", "__code__",
+        "__reduce__", "__reduce_ex__", "__getattribute__", "__loader__",
+        "__spec__", "__init_subclass__", "__subclasshook__",
+    )
 
     def __init__(self, workspace_root: str, allow_python: bool = False, audit=None):
         self.ws = Path(workspace_root).resolve()
@@ -164,7 +184,8 @@ class Tools:
 
     # ---------- 受限 Python 沙箱（默认关闭） ----------
     def _py_guard(self, code: str) -> str:
-        """AST 静态检查：禁止危险 import / 内建调用 / dunder 逃逸。返回 "" 表示放行。"""
+        """AST 静态检查：禁止危险 import / 内建调用 / 属性调用 / dunder 逃逸。
+        返回 "" 表示放行。2026-11-16 加固，堵 builtins/getattr/属性调用三类绕过。"""
         try:
             tree = ast.parse(code)
         except SyntaxError as e:
@@ -182,8 +203,16 @@ class Tools:
             elif isinstance(node, ast.Name):
                 if node.id in self._PY_DENY_CALLS:
                     return f"[blocked] 沙箱禁止使用 {node.id}()"
-            elif isinstance(node, ast.Attribute) and node.attr.startswith("__"):
-                return f"[blocked] 沙箱禁止访问 {node.attr}（可绕过限制）"
+            elif isinstance(node, ast.Attribute):
+                if node.attr.startswith("__"):
+                    return f"[blocked] 沙箱禁止访问 {node.attr}（可绕过限制）"
+                # 属性形式调用危险名：builtins.open / x.eval / os.system 等
+                if node.attr in self._PY_DENY_ATTRS:
+                    return f"[blocked] 沙箱禁止调用 .{node.attr}()"
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                # dunder 字符串常量（getattr 的第二个参数等）
+                if any(tok in node.value for tok in self._PY_DUNDER_TOKENS):
+                    return f"[blocked] 沙箱禁止 dunder 逃逸字符串"
         return ""
 
     def run_python(self, code: str, timeout: int = 10, task_id: str = "") -> str:

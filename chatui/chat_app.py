@@ -59,6 +59,39 @@ for _p in (getattr(sys, "_MEIPASS", None), os.path.dirname(os.path.abspath(__fil
 DEFAULT_SID = "default"      # 与 sessions.DEFAULT_SID 保持一致
 
 
+def _load_app_config():
+    """轻量读取项目根 config.yaml 的 num_ctx / keep_alive / model（不依赖 yaml 包，兼容打包态）。
+
+    打包成 exe 后 _MEIPASS 内通常没有 config.yaml，此时回退到内置默认值，
+    保证离线运行不依赖外部配置文件。config.yaml 当前作用: 让 UI 的默认 ctx / keep_alive
+    与 agent/MCP 侧保持一致，避免改了 config 界面却没生效（旧版 keep_alive 硬编码在代码里）。
+    """
+    cfg = {"num_ctx": 3072, "keep_alive": "5m", "model": "gemma3:4b"}
+    try:
+        p = Path(_bundle_root()) / "config.yaml"
+        if not p.exists():
+            p = Path(os.path.dirname(os.path.abspath(__file__))) / ".." / "config.yaml"
+        if p.exists():
+            text = p.read_text(encoding="utf-8")
+            m = re.search(r"^num_ctx:\s*(\d+)", text, re.M)
+            if m:
+                cfg["num_ctx"] = int(m.group(1))
+            m = re.search(r"^keep_alive:\s*[\"']?([^\"'\n]+)[\"']?", text, re.M)
+            if m:
+                cfg["keep_alive"] = m.group(1).strip().strip("\"'")
+            m = re.search(r"^model:\s*[\"']?([^\"'\n]+)[\"']?", text, re.M)
+            if m:
+                cfg["model"] = m.group(1).strip().strip("\"'")
+    except Exception:
+        pass
+    return cfg
+
+
+_CFG = _load_app_config()
+DEFAULT_NUM_CTX = _CFG["num_ctx"]
+DEFAULT_KEEP_ALIVE = _CFG["keep_alive"]
+
+
 # ==================== 本地数据目录 / 会话持久化 ====================
 def _data_dir():
     """会话与设置落盘目录：打包态写 %LOCALAPPDATA%，开发态写脚本同目录/data。"""
@@ -207,9 +240,15 @@ def _resource_dir():
     candidates.append(base)
     candidates.append(os.path.join(base, "_internal"))
     for c in candidates:
-        if os.path.isdir(os.path.join(c, "ollama")) or \
-           os.path.isdir(os.path.join(c, "bundle_models")):
+        if (os.path.isdir(os.path.join(c, "ollama")) or
+                os.path.isdir(os.path.join(c, "bundle_models")) or
+                os.path.isdir(os.path.join(c, "model_assets")) or
+                os.path.isfile(os.path.join(c, "app.ico"))):
             return c
+    # 轻装版不含 ollama/bundle_models: onefile 下 datas 解压到 sys._MEIPASS,
+    # 必须回退到它, 否则 app.ico 定位失败 → 窗口/任务栏图标丢失
+    if hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
     return candidates[-1] if candidates else base
 
 
@@ -504,7 +543,7 @@ class Worker(QThread):
     errored = Signal(str)
     stats = Signal(dict)          # eval_count / eval_duration / prompt_eval_count
 
-    def __init__(self, model, messages, temperature=0.3, num_ctx=6144):
+    def __init__(self, model, messages, temperature=0.3, num_ctx=DEFAULT_NUM_CTX):
         super().__init__()
         self.model = model
         self.messages = messages           # 完整多轮历史 + 当前用户消息
@@ -532,7 +571,7 @@ class Worker(QThread):
                  # num_ctx 可通过"设置"调整；qwen3:4b 在 4096 下会输出乱码(实测)
                  "options": {"temperature": self.temperature,
                              "num_ctx": self.num_ctx,
-                             "keep_alive": "10m"}}
+                             "keep_alive": DEFAULT_KEEP_ALIVE}}
             ).encode()
             req = urllib.request.Request(
                 OLLAMA_BASE + "/api/chat", data=payload,
@@ -1101,43 +1140,53 @@ class BubbleItem(QWidget):
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
     def _speak(self):
-        """朗读本条回答；再点一次停止。"""
+        """朗读本条回答（后台线程合成+播放，绝不阻塞界面）；再点一次停止。"""
         try:
             import voice
         except Exception:
             return
         if getattr(self, "_speaking", False):
             voice.stop_speaking()
-            self._speaking = False
-            self.speakBtn.setText("朗读")
+            self._set_speak_state(False)
             return
-        if voice.speak(self._raw):
-            self._speaking = True
-            self.speakBtn.setText("停止")
-            QTimer.singleShot(1000, self._poll_speaking)
+        # 立即切换为"停止"态：本地 CPU 合成可能耗时数秒，不立刻反馈会让用户
+        # 以为没反应而连点，误以为软件卡死/崩溃。
+        self._set_speak_state(True)
 
-    def _poll_speaking(self):
-        """播放结束后把按钮复位（winsound 无完成回调，按剩余时长轮询）。"""
-        if not getattr(self, "_speaking", False):
-            return
+        def _done():
+            self._set_speak_state(False)
+
+        def _error(msg):
+            self._set_speak_state(False)
+            self._sys("朗读失败：%s" % msg)
+
+        # 回调在后台线程触发，用 singleShot 抛回 GUI 线程再操作 Qt 控件，避免跨线程崩溃。
+        voice.speak(
+            self._raw,
+            on_done=lambda: QTimer.singleShot(0, _done),
+            on_error=lambda m: QTimer.singleShot(0, lambda: _error(m)),
+        )
+
+    def _set_speak_state(self, speaking: bool):
+        """线程安全地切换朗读按钮状态（气泡可能已在播放期间被删除）。"""
+        self._speaking = bool(speaking)
         try:
-            import voice
-            if voice.is_speaking():
-                QTimer.singleShot(1000, self._poll_speaking)
-                return
-        except Exception:
-            pass
-        # 气泡可能在播放期间被删除（清空会话/停止生成），访问前必须防一手
-        try:
-            self._speaking = False
-            if self.speakBtn is not None:
-                self.speakBtn.setText("朗读")
+            if getattr(self, "speakBtn", None) is not None:
+                self.speakBtn.setText("停止" if speaking else "朗读")
         except RuntimeError:
-            self._speaking = False
+            pass
 
     def set_text(self, text):
         self._raw = text
         self.label.setText(format_body(self.role, text))
+        # 流式追加或定稿后文字变长，但气泡高度仍是旧值（旧实现只显示第一行，
+        # 须切界面/刷新触发 _recap 才补全）。这里按当前收敛宽度立即重排，
+        # 保证全部内容在生成过程中就完整渲染出来。
+        if getattr(self, "_max_w", None):
+            try:
+                self.set_max_width(self._max_w)
+            except Exception:
+                pass
 
     def add_stats(self, text):
         """在消息时间戳后追加生成统计（tok/s、token 数等）。"""
@@ -1170,6 +1219,8 @@ class BubbleItem(QWidget):
             self.label.adjustSize()
 
     def set_max_width(self, px):
+        # 记下当前收敛宽度：流式 set_text 时据此重排高度，避免文字变长后只显示一行。
+        self._max_w = max(1, int(px))
         if self.role == "ai":
             # AI 回答占满阅读宽度：只靠 sizeHint 会让每段文字缩成窄条
             self.bubble.setFixedWidth(px)
@@ -1418,7 +1469,7 @@ class ChatWindow(QMainWindow):
         self._settings = QSettings("offline_chat", "offline_chat")
         self.model = self._settings.value("model") or "gemma3:4b"
         self.temperature = float(self._settings.value("temperature", 0.3))
-        self.num_ctx = int(self._settings.value("num_ctx", 6144))
+        self.num_ctx = int(self._settings.value("num_ctx", DEFAULT_NUM_CTX))
         self.system_prompt = str(self._settings.value("system_prompt", "") or "")
         # 深度思考：草稿 → 自检挑刺 → 定稿（三轮本地推理，质量换时间）
         self.deep = str(self._settings.value("deep", "false")).lower() in ("1", "true", "yes")
@@ -2395,7 +2446,7 @@ class ChatWindow(QMainWindow):
         self._on_error("解析文档《%s》失败：%s" % (os.path.basename(path), err))
 
     def _trim_history(self, max_chars=3200):
-        """按字符预算裁剪最旧的历史（保留最后一轮），防上下文溢出 6144。"""
+        """按字符预算裁剪最旧的历史（保留最后一轮），防上下文溢出。"""
         total = sum(len(m.get("content", "")) for m in self.history)
         while total > max_chars and len(self.history) > 1:
             total -= len(self.history.pop(0).get("content", ""))
@@ -2460,7 +2511,7 @@ class ChatWindow(QMainWindow):
             "最常见原因是**内存被多个模型占满**（本机 16GB，两个模型同时驻留就会这样）。处理：\n"
             "① 换一个模型试（程序会自动卸载上一个模型，通常立刻恢复）；\n"
             "② 关掉其他大程序（浏览器多标签、PS、IDE 等）后重试；\n"
-            "③ 到「设置」把上下文改回 6144 再试。"
+            "③ 到「设置」把上下文调低到 3072 或更小再试（上下文越大越占内存）。"
             % (self.model, head))
 
     def _finish(self):
@@ -3275,6 +3326,23 @@ _GLOBAL_SHARED = None
 
 def main():
     global _GLOBAL_SHARED
+    # 朗读诊断模式：不启动 GUI，直接合成/播放（或导出 WAV），仅供打包自检。
+    # 必须在创建 QApplication / 单实例锁之前短路返回，避免拉起 GUI。
+    if len(sys.argv) > 1 and sys.argv[1] in ("--tts-worker", "--speak-file"):
+        try:
+            import voice
+            _sf = sys.argv[2] if len(sys.argv) > 2 else None
+            if _sf:
+                # 导出 WAV 的优先级：--dump <path> > 环境变量 OFFLINE_TTS_DUMP
+                _dump = os.environ.get("OFFLINE_TTS_DUMP")
+                if "--dump" in sys.argv:
+                    _i = sys.argv.index("--dump") + 1
+                    if _i < len(sys.argv):
+                        _dump = sys.argv[_i]
+                voice.run_worker_from_file(_sf, _dump)
+        except Exception:
+            pass
+        sys.exit(0)
     # 显式声明 AppUserModelID, 否则 Windows 任务栏可能回退显示默认 Python 图标
     try:
         import ctypes

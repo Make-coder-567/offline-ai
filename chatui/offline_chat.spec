@@ -23,8 +23,33 @@ if not LITE:
 #   model_assets/ → bge-small-zh 向量(94MB) + piper 语音(63MB) + whisper-base(145MB)
 datas.append((os.path.join(os.path.dirname(SPEC_DIR), 'server'), 'server'))
 datas.append((os.path.join(os.path.dirname(SPEC_DIR), 'config.yaml'), '.'))
-if not LITE and os.path.isdir(os.path.join(SPEC_DIR, 'model_assets')):
+# 2026-11-16：随包辅助脚本纳入构建（此前靠构建后手工拷贝，换机重建必漏）
+for _aux, _src in (
+    ('diagnose.bat', os.path.join(SPEC_DIR, 'diagnose.bat')),
+    ('start_models_on_D.bat', os.path.join(SPEC_DIR, 'store_fix', 'start_models_on_D.bat')),
+    ('uninstall_offline_chat.bat', os.path.join(SPEC_DIR, 'uninstall_tools', 'uninstall_offline_chat.bat')),
+):
+    if os.path.isfile(_src):
+        datas.append((_src, '.'))
+# LITE 模式默认不带 model_assets；OFFLINE_KEEP_ASSETS=1 时保留（语音/RAG 向量）
+if (not LITE or os.environ.get('OFFLINE_KEEP_ASSETS') == '1') \
+        and os.path.isdir(os.path.join(SPEC_DIR, 'model_assets')):
     datas.append(('model_assets', 'model_assets'))
+
+# piper 的 espeak-ng-data 是"包数据目录"，PyInstaller 不会随 hiddenimport 自动收集，
+# 但 piper 运行时用 Path(__file__).parent / "espeak-ng-data" 定位它（phonemize_espeak.py）。
+# 不打包会导致冻结态朗读时 espeak-ng 回退到编译机硬编码路径而报 phontab 缺失 / 出静音。
+try:
+    import piper as _piper
+    _ed = os.path.join(os.path.dirname(os.path.abspath(_piper.__file__)),
+                       "espeak-ng-data")
+    if os.path.isdir(_ed):
+        datas.append((_ed, "piper/espeak-ng-data"))
+        print("已纳入 piper/espeak-ng-data（%s）到打包数据。" % _ed)
+    else:
+        print("WARNING: 找到 piper 但未发现 espeak-ng-data 目录：%s" % _ed)
+except Exception as _e:
+    print("WARNING: 未找到 piper/espeak-ng-data，朗读可能无法出声：%s" % _e)
 
 # 离线模型包: 由 prepare_bundle.py 生成 bundle_manifest.json + bundle_models/*/Modelfile
 manifest_path = os.path.join(SPEC_DIR, 'bundle_manifest.json')

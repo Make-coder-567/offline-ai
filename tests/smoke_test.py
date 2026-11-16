@@ -96,6 +96,17 @@ def t_tools_action():
     assert t2.run_python("import os; os.system('echo hi')").startswith("[blocked]")
     assert t2.run_python("open('x','w')").startswith("[blocked]")
     assert t2.run_python("eval('1+1')").startswith("[blocked]")
+    # 2026-11-16 加固回归：builtins/getattr/属性调用/dunder 逃逸三类绕过
+    bypasses = [
+        "import builtins; builtins.open('secret.txt').read()",
+        "import builtins; builtins.eval('1+1')",
+        "getattr((), '__class__')",
+        "setattr((), 'x', 1)",
+        "().__class__.__base__.__subclasses__()[0]",
+        "import builtins as b; b.__import__('os')",
+    ]
+    for code in bypasses:
+        assert t2.run_python(code).startswith("[blocked]"), f"沙箱被绕过: {code}"
     out = t2.run_python("import math; print(math.sqrt(16))")
     assert "[ok]" in out and "4.0" in out, out
     assert t2.run_python("while True: pass", timeout=2).startswith("[error]")
@@ -151,6 +162,19 @@ def t_protocol():
     b.mark_running(path, tk)
     assert json.loads(path.read_text(encoding="utf-8"))["status"] == "running"
     assert b.reset_running() == 1
+    # 2026-11-16 加固回归：task_id 路径穿越必须被拒（越界写 outbox / 删 cancel）
+    from bridge.protocol import safe_task_id
+    for evil in ("../evil", "a/b", "/abs", "", "a..b", ".."):
+        try:
+            safe_task_id(evil)
+            raise AssertionError(f"非法 task_id 未被拒绝: {evil!r}")
+        except ValueError:
+            pass
+    assert safe_task_id("task_1.a-b") == "task_1.a-b"
+    # from_dict 解析阶段拦截：非法 id 的任务不进入待办
+    (b.inbox_path() / "evil.json").write_text(json.dumps(
+        {"task_id": "../evil", "prompt": "x", "status": "pending"}), encoding="utf-8")
+    assert all(t.task_id != "../evil" for _, t in b.list_pending())
     assert b.list_pending()[0][1].status == "pending"
     t2 = Task(task_id="dup", prompt="x")
     p1, p2 = b.write_outbox(t2), b.write_outbox(t2)
@@ -234,6 +258,92 @@ def t_agent():
         pass
 
 
+def t_agent_main_startup():
+    """回归 P0：agent.main() 必须能真正启动并进入轮询循环。
+
+    历史致命缺陷：main() 内 `Tools(ws, ...)` 引用未定义变量 ws，
+    独立 agent 进程启动即 NameError；而所有旧测试只调 handle_task()，
+    完全绕过 main()，导致对这一缺陷免疫。本测试 monkeypatch 掉真实
+    Bridge / Audit / scheduler / sleep，让 main() 跑一帧循环后抛哨兵退出，
+    专门覆盖启动路径。若再出现同类 NameError，此处会立即失败。
+    """
+    import types
+
+    class _StopLoop(Exception):
+        pass
+
+    orig = {
+        "load_config": ag.load_config,
+        "Bridge": ag.Bridge,
+        "Audit": ag.Audit,
+        "Tools": ag.Tools,
+        "sleep": ag.time.sleep,
+        "sched": sys.modules.get("scheduler"),
+    }
+
+    class _FakeBridge:
+        def __init__(self, *a, **k):
+            self.root = Path(tempfile.mkdtemp())
+
+        def reset_running(self):
+            return 0
+
+        def list_pending(self):
+            return []  # 空 inbox，循环体不执行任务，直接走到 sleep
+
+        def log(self, msg):
+            pass
+
+        def inbox_path(self):
+            return self.root
+
+    class _FakeAudit:
+        def __init__(self, *a, **k):
+            pass
+
+    class _FakeTools:
+        def __init__(self, *a, **k):
+            pass
+
+    def _fake_config():
+        return {
+            "model": "fake-model",
+            "workspace_root": tempfile.mkdtemp(),
+            "bridge_dir": ".offline-bridge",
+            "ollama_base": "http://127.0.0.1:11434",
+            "agent": {"allow_python": False},
+        }
+
+    def _stop(*a, **k):
+        raise _StopLoop()
+
+    fake_sched = types.ModuleType("scheduler")
+    fake_sched.start_thread = lambda *a, **k: None
+
+    try:
+        ag.load_config = _fake_config
+        ag.Bridge = _FakeBridge
+        ag.Audit = _FakeAudit
+        ag.Tools = _FakeTools
+        ag.time.sleep = _stop
+        sys.modules["scheduler"] = fake_sched
+        try:
+            ag.main()
+            raise AssertionError("main() 应被哨兵异常中断；若正常返回说明未进入循环")
+        except _StopLoop:
+            pass  # 成功到达轮询循环
+    finally:
+        ag.load_config = orig["load_config"]
+        ag.Bridge = orig["Bridge"]
+        ag.Audit = orig["Audit"]
+        ag.Tools = orig["Tools"]
+        ag.time.sleep = orig["sleep"]
+        if orig["sched"] is None:
+            sys.modules.pop("scheduler", None)
+        else:
+            sys.modules["scheduler"] = orig["sched"]
+
+
 # ==================== rag ====================
 def t_rag():
     from rag import RagIndex
@@ -315,6 +425,17 @@ def t_phase3():
     assert memory.forget(d, "常用语言").startswith("[ok]")
     assert "常用语言" not in memory.recall(d)
     assert (Path(d) / "memory.md").is_file()
+    # 2026-11-16 修复回归：空关键词拒删 + 命中全库需二次确认
+    d2 = tempfile.mkdtemp()
+    memory.remember(d2, "事实甲")
+    memory.remember(d2, "事实乙")
+    assert memory.forget(d2, "").startswith("[error]")  # 空关键词拒绝
+    assert "事实甲" in memory.recall(d2) and "事实乙" in memory.recall(d2)  # 未被误删
+    r = memory.forget(d2, "事实")  # 命中全部 2 条
+    assert r.startswith("[confirm]"), r
+    assert "事实甲" in memory.recall(d2)  # 未 confirm 前仍在
+    assert memory.forget(d2, "事实", confirm=True).startswith("[ok]")
+    assert "（记忆库还是空的）" in memory.recall(d2)
 
     # 定时任务：参数校验 + 到期触发 + 幂等
     scheduler.add(d, "每小时总结", every_minutes=60)
@@ -786,7 +907,7 @@ def run_ui_tests():
         fake.SAMPLE_RATE = 16000
         fake.MAX_RECORD_SECONDS = 5
         fake.calls = []
-        fake.speak = lambda t: fake.calls.append(t) or True
+        fake.speak = lambda t, on_done=None, on_error=None: fake.calls.append(t) or True
         fake.stop_speaking = lambda: None
         fake.is_speaking = lambda: False
         fake.stt_available = lambda: True
@@ -804,9 +925,14 @@ def run_ui_tests():
             w.input.setPlainText("请问")
             w._on_voice_text("明天呢")
             assert w.input.toPlainText() == "请问 明天呢"
+            # 2026-11-16：原断言末尾 `or True` 恒真、无验证价值。
+            # sys 条不入 _bubbles，改为检查 msg_layout 新增的气泡文本。
+            before = w.msg_layout.count()
             w._on_voice_text("   ")
-            assert any("没听清" in getattr(b, "_raw", "")
-                       for b in w._bubbles) or True      # sys 条不入 _bubbles
+            assert w.msg_layout.count() == before + 1, "空转写应新增一条提示气泡"
+            added = w.msg_layout.itemAt(before).widget()
+            assert added is not None and "没听清" in getattr(added, "_raw", ""), \
+                "空转写应提示没听清"
             # 朗读按钮：AI 气泡上才有，点击调用 voice.speak
             item = w._add_message("ai", "回答正文", who="AI", ts="1")
             assert getattr(item, "speakBtn", None) is not None, "AI 气泡应有朗读按钮"
@@ -1118,6 +1244,7 @@ def main():
         ("phase3: 长期记忆/定时任务/OpenAI 网关", t_phase3),
         ("protocol: 原子写/去重/恢复", t_protocol),
         ("agent: ReAct 循环/路由/降级/取消", t_agent),
+        ("agent: main() 启动路径（P0 回归）", t_agent_main_startup),
         ("rag: BM25 建库与检索", t_rag),
         ("rag v2: 文档解析入库与去重", t_docparse),
         ("rag v3: 混合检索（BM25+向量 RRF）与降级", t_hybrid),

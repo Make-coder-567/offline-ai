@@ -8,15 +8,21 @@ import subprocess
 import sys
 import time
 
-ROOT = r"E:\Workbuddy\离线AI\offline-ai"
+from pathlib import Path
+
+ROOT = str(Path(__file__).resolve().parents[1])  # 2026-11-16：去掉硬编码绝对路径
 PY = sys.executable
+
+# 可选参数：检查任意一份 mcp_server.py（例如打包后的 _internal/server/）
+SERVER = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "server", "mcp_server.py")
+CWD = sys.argv[2] if len(sys.argv) > 2 else ROOT
 
 
 def main():
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
-    p = subprocess.Popen([PY, os.path.join(ROOT, "server", "mcp_server.py")],
-                         cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    p = subprocess.Popen([PY, SERVER],
+                         cwd=CWD, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, env=env)
     n = [0]
 
@@ -70,6 +76,10 @@ def main():
         check("tools/list 非空", len(tools) >= 5, str(names))
         print("      工具:", ", ".join(names))
 
+        # 2026-11-16：核心工具缺失应算 FAIL，不再静默跳过（否则删工具反而更绿）
+        for required in ("local_model_list", "local_audit", "local_llm_chat"):
+            check(f"工具存在: {required}", required in names, str(names))
+
         # 不需要推理的轻量调用
         if "local_model_list" in names:
             r = call("tools/call", {"name": "local_model_list", "arguments": {}})
@@ -78,14 +88,27 @@ def main():
             check("调用 model_list", bool(text) and "error" not in text.lower()[:40],
                   text[:120])
 
+        # 工作区相关：audit 需要按 config 解析 workspace_root
+        # 2026-11-16：修正参数名 limit->n（真实签名 local_audit(n: int = 20)）
+        if "local_audit" in names:
+            r = call("tools/call", {"name": "local_audit", "arguments": {"n": 3}},
+                     _id=98)
+            c = (r.get("result") or {}).get("content") or []
+            text = c[0].get("text", "") if c else ""
+            check("调用 local_audit（工作区解析）",
+                  bool(text) and "error" not in text[:40].lower(), text[:120])
+
         # 需要推理的一次调用（短问句，验证模型通路）
+        # 2026-11-16：chat 必须排除 [error]，Ollama 不可用时不再"非空即过"
         if "local_llm_chat" in names:
             r = call("tools/call", {"name": "local_llm_chat",
                                     "arguments": {"prompt": "/no_think 只回答两个字：你好"}},
                      _id=99)
             c = (r.get("result") or {}).get("content") or []
             text = c[0].get("text", "") if c else ""
-            check("调用 chat（真实推理）", bool(text.strip()), text[:120])
+            is_error = text.strip().lower().startswith("[error]") or "ollama" in text[:60].lower()
+            check("调用 chat（真实推理）",
+                  bool(text.strip()) and not is_error, text[:120])
     finally:
         try:
             p.stdin.close()

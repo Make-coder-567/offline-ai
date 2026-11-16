@@ -111,8 +111,11 @@ def t_deep_think():
 
 def main():
     if not ollama_alive():
-        print("跳过：Ollama 未运行（%s）。启动后重试。" % os.environ["OLLAMA_HOST"])
-        return 0
+        # 2026-11-16：默认不再假绿。退出码 2 明确表示"未执行/环境缺失"，
+        # CI 与人工都不得把它当作通过；确需跳过时显式传 --allow-skip。
+        print("未执行：Ollama 未运行（%s）。真实链路未验证。" % os.environ["OLLAMA_HOST"])
+        print("启动 Ollama 后重试；若确需跳过请显式传 --allow-skip。")
+        return 0 if "--allow-skip" in sys.argv else 2
     step("文档问答（OCR→检索→引用）", t_doc_qa)
     step("Agent 写文件 + 审计 + 回滚", t_agent_write_undo)
     if "--quick" not in sys.argv:

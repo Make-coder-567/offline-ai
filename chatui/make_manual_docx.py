@@ -17,7 +17,12 @@ _DIST = os.path.join(_BASE, "dist")
 _CANDIDATES = [os.path.join(_BASE, "dist_new", "offline_chat"),
                os.path.join(_DIST, "offline_chat"),
                os.path.join(_DIST, "offline_chat_portable")]
-OUT_DIR = next((d for d in _CANDIDATES if os.path.isdir(d)), _CANDIDATES[0])
+# 2026-11-16：支持命令行指定输出目录（构建链可把说明书直接生成到新包）
+if len(__import__("sys").argv) > 1:
+    OUT_DIR = os.path.abspath(__import__("sys").argv[1])
+    os.makedirs(OUT_DIR, exist_ok=True)
+else:
+    OUT_DIR = next((d for d in _CANDIDATES if os.path.isdir(d)), _CANDIDATES[0])
 OUT = os.path.join(OUT_DIR, "离线AI聊天工具_使用说明.docx")
 
 CJK = "微软雅黑"          # 中文正文/标题主字体（系统通用，WPS/Word 均支持）
@@ -301,7 +306,7 @@ def main():
     add_number(doc, "输入问题，按回车发送（Shift+Enter 换行）。回答会逐字出现，"
                     "代码块、列表、加粗文字会自动排版。")
     add_number(doc, "继续追问即可：程序会自动带上之前的对话，提示栏会显示"
-                    "“上下文 ~N/6144”，让你知道还能聊多长。")
+                    "“上下文 ~N/3072”，让你知道还能聊多长。")
     add_number(doc, "生成过程中如果不想等了，点输入框右侧的红色方块，或按 Esc 停止；"
                     "已经生成的内容会保留。")
     add_number(doc, "图片问答：把图片直接拖进窗口，或按 Ctrl+V 粘贴截图，输入框上方会出现缩略图，"
@@ -315,7 +320,7 @@ def main():
                "• 代码类问题建议选用 qwen2.5-coder:3b。\n"
                "• 图片问答一定要切到 gemma3:4b-vision，否则会提示“当前模型不支持图像输入”。\n"
                "• 如果回答太长或被截断，可接着追问“继续”。\n"
-               "• 设置里的“上下文”请避开 4096（qwen3 系列在该值下可能输出乱码），默认 6144 即可。\n"
+               "• 设置里的“上下文”请避开 4096（qwen3 系列在该值下可能输出乱码），默认 3072 即可；内存紧张时调更低更稳。\n"
                "• 全部计算在本地 CPU 完成，速度比云端略慢属正常现象。",
                TIP_BG)
 
@@ -415,7 +420,7 @@ def main():
                   ["回答是一串 0000 或乱码",
                    "多为内存被多个模型占满（本机 16GB，两个模型同时驻留就会这样）。处理：① 换一个模型再切回来——"
                    "程序会自动卸载上一个模型，通常立刻恢复；② 关闭浏览器多标签、PS、IDE 等大程序；"
-                   "③ 检查“设置”里的上下文是否为 4096，qwen3 系列请用 6144。"],
+                   "③ 检查“设置”里的上下文是否为 4096（qwen3 系列请用 3072），内存紧张时调更低。"],
                   ["想找回之前的对话", "会话已自动保存，重新打开程序即可恢复；按 Ctrl+L 清空。"],
                   ["语音输入没反应 / 提示“无法打开录音设备”",
                    "① Windows 设置 → 系统 → 声音 → 输入，确认已选择麦克风且音量条有跳动；"
